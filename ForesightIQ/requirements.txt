@@ -1,8 +1,8 @@
-streamlit>=1.38,<2
-pandas>=2.1,<3
-numpy>=1.26,<3
-matplotlib>=3.8,<4
-prophet>=1.1.5,<2
+streamlit>=1.48,<2
+pandas>=2.3,<3
+numpy>=2.0,<3
+matplotlib>=3.10,<4
+prophet>=1.1.7,<2
 pmdarima>=2.0.3,<3
-openai>=1.30.0
-xlsxwriter>=3.1,<4
+openai>=1.101.0
+xlsxwriter>=3.2,<4
