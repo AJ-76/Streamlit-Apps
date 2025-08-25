@@ -428,29 +428,3 @@ pmdarima==2.0.4
 openai>=1.30.0
 xlsxwriter==3.2.0
 """
-
-readme = r'''# ForecastIQ — AI-powered clarity for financial foresight
-
-A professional Streamlit app for quick time-series forecasting with CSV/XLSX upload, configurable columns, optional categorical filtering, three model choices (Prophet, AutoARIMA, Simple Moving Average), forecast intervals, narrative insights via OpenAI, and Excel export.
-
-## Features
-
-- **Data upload:** CSV or Excel
-- **Column mapping:** Choose date/time (`ds`) and numeric target (`y`); optional categorical filter
-- **Models:** Prophet, AutoARIMA, or Simple Moving Average
-- **Controls:** Horizon length and frequency (Daily, Weekly, Monthly)
-- **Outputs:** Matplotlib plot, forecast table (columns: `ds`, `yhat`, `yhat_lower`, `yhat_upper`), downloadable Excel
-- **Narrative summary:** Optional, via OpenAI (set `OPENAI_API_KEY`)
-
-## Local Setup
-
-1. **Prerequisites**
-   - Python 3.10 or newer (3.11 recommended)
-   - (Optional) A virtual environment
-   - (Optional) OpenAI key for narrative: set `OPENAI_API_KEY`
-
-2. **Install**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
