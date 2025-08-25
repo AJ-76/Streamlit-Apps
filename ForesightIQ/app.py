@@ -1,12 +1,6 @@
 # ForecastIQ — AI-powered clarity for financial foresight
 # Streamlit app: CSV/XLSX upload → column mapping → (optional) categorical filter →
 # model (Prophet / AutoARIMA / Simple Moving Average) → forecast plot/table → Excel download → narrative (OpenAI).
-#
-# Run:
-#   pip install -r requirements.txt
-#   streamlit run app.py
-#
-# Set OPENAI_API_KEY to enable narrative insights.
 
 import os
 import io
@@ -18,7 +12,7 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-# Optional libraries with graceful fallbacks
+# Optional libs with graceful fallbacks
 HAVE_PROPHET = True
 try:
     from prophet import Prophet
@@ -47,8 +41,7 @@ st.set_page_config(page_title="ForecastIQ", layout="wide")
 st.title("ForecastIQ")
 st.caption("AI-powered clarity for financial foresight")
 
-# ---------------- Utilities ----------------
-
+# ---------- Utilities ----------
 def read_input_file(uploaded_file) -> pd.DataFrame:
     name = uploaded_file.name.lower()
     if name.endswith(".csv"):
@@ -194,7 +187,7 @@ def to_excel_bytes(forecast_df: pd.DataFrame, meta: dict) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-# ---------------- Sidebar ----------------
+# ---------- Sidebar ----------
 with st.sidebar:
     st.header("1) Upload")
     uploaded = st.file_uploader("Upload CSV or Excel (.xlsx)", type=["csv", "xlsx", "xls"])
@@ -220,7 +213,7 @@ if uploaded is None:
     st.info("Upload a dataset to begin. Accepted formats: CSV, XLSX.")
     st.stop()
 
-# Read file
+# Read and validate
 try:
     raw_df = read_input_file(uploaded)
 except Exception as e:
@@ -316,7 +309,6 @@ meta = {
     "category_values": ", ".join(category_vals) if category_vals else "",
 }
 excel_bytes = to_excel_bytes(fcst, meta)
-
 st.download_button(
     label="Download Excel Output",
     data=excel_bytes,
