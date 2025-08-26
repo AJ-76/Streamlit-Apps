@@ -1,6 +1,6 @@
-# ForecastIQ — AI-powered clarity for financial foresight
-# Streamlit app: CSV/XLSX upload → column mapping → (optional) categorical filter →
-# model (Prophet / AutoARIMA / Simple Moving Average) → forecast plot/table → Excel download → narrative (OpenAI).
+# ForecastIQ â€" AI-powered clarity for financial foresight
+# Streamlit app: CSV/XLSX upload â†' column mapping â†' (optional) categorical filter â†'
+# model (Prophet / AutoARIMA / Simple Moving Average) â†' forecast plot/table â†' Excel download â†' narrative (OpenAI).
 #
 # Run:
 #   pip install -r requirements.txt
@@ -78,16 +78,53 @@ def coerce_to_numeric(df, col):
     """
     Make a best-effort numeric coercion:
     - Remove thousands separators
-    - Handle ($1,234.56) → -1234.56
+    - Handle ($1,234.56) â†' -1234.56
     - Strip common currency symbols
     """
     s = df[col].astype(str).str.strip()
     # parentheses for negatives
     s = s.str.replace("(", "-", regex=False).str.replace(")", "", regex=False)
     # remove commas and common symbols
-    for sym in [",", "$", "₹", "€", "£"]:
+    for sym in [",", "$", "â‚¹", "â‚¬", "Â£"]:
         s = s.str.replace(sym, "", regex=False)
     return pd.to_numeric(s, errors="coerce")
+
+def detect_frequency(df):
+    """
+    Automatically detect the frequency of the time series data.
+    Returns (freq_code, freq_label) tuple.
+    """
+    if len(df) < 2:
+        return "D", "Daily"
+    
+    # Sort by date to ensure proper diff calculation
+    df_sorted = df.sort_values("ds")
+    
+    # Calculate differences between consecutive dates
+    diffs = df_sorted["ds"].diff().dropna()
+    
+    if diffs.empty:
+        return "D", "Daily"
+    
+    # Get the most common difference (mode)
+    mode_diff = diffs.mode()
+    if mode_diff.empty:
+        median_diff = diffs.median()
+    else:
+        median_diff = mode_diff.iloc[0]
+    
+    # Convert to days for comparison
+    median_days = median_diff.total_seconds() / (24 * 3600)
+    
+    # Determine frequency based on median difference
+    if median_days <= 1.5:  # Up to 1.5 days -> Daily
+        return "D", "Daily"
+    elif median_days <= 10:  # 2-10 days -> Weekly
+        return "W", "Weekly"
+    elif median_days <= 40:  # 11-40 days -> Monthly
+        return "MS", "Monthly"
+    else:  # > 40 days -> treat as Monthly
+        return "MS", "Monthly"
 
 def ensure_monotonic_frequency(df, freq_code):
     """
@@ -145,7 +182,7 @@ def forecast_autoarima(df, horizon, freq_code):
 def forecast_sma(df, horizon, freq_code):
     """
     Simple Moving Average forecast with iterative horizon.
-    Window heuristic: D→7, W→4, MS→3. Intervals via in-sample residual std.
+    Window heuristic: Dâ†'7, Wâ†'4, MSâ†'3. Intervals via in-sample residual std.
     """
     window_map = {"D": 7, "W": 4, "MS": 3}
     win = window_map.get(freq_code, 7)
@@ -192,7 +229,7 @@ def generate_narrative(openai_enabled, forecast_df, last_actual, freq_label, mod
         return deterministic
 
     prompt = (
-        "You are a finance-savvy analyst. Write a crisp narrative (120–170 words) for a CFO "
+        "You are a finance-savvy analyst. Write a crisp narrative (120â€"170 words) for a CFO "
         "summarizing a time-series forecast. Avoid promises or guarantees. Use precise, factual language.\n\n"
         f"Frequency: {freq_label}\nModel: {model_name}\nLast Actual: {last_actual:,.4f}\n"
         f"Forecast Start: {start_val:,.4f}\nForecast End: {end_val:,.4f}\nDirection: {direction}\n"
@@ -252,11 +289,7 @@ with st.sidebar:
     uploaded = st.file_uploader("Upload CSV or Excel (.xlsx, .xls)", type=["csv", "xlsx", "xls", "xlsm"])
 
     st.header("2) Configure")
-    freq_label = st.selectbox("Frequency", options=["Daily", "Weekly", "Monthly"], index=0)
-    # Use generic weekly 'W'; ensure_monotonic_frequency will auto-anchor to dominant weekday
-    freq_map = {"Daily": "D", "Weekly": "W", "Monthly": "MS"}
-    freq_code = freq_map[freq_label]
-
+    
     # Only show methods that are actually available
     model_options = []
     if HAVE_PROPHET:
@@ -266,8 +299,8 @@ with st.sidebar:
     model_options.append("Simple Moving Average")
     model_name = st.selectbox("Forecasting method", options=model_options, index=0)
 
-    default_h = 90 if freq_code == "D" else (26 if freq_code == "W" else 12)
-    horizon = st.number_input("Forecast horizon (periods)", min_value=1, max_value=1000, value=default_h, step=1)
+    # Default horizon will be set after frequency detection
+    horizon = st.number_input("Forecast horizon (periods)", min_value=1, max_value=1000, value=30, step=1)
 
     st.header("3) Run")
     run_btn = st.button("Generate Forecast", type="primary")
@@ -296,14 +329,44 @@ with st.expander("Preview (first 10 rows)"):
 # Column mapping
 st.markdown("### Configure")
 all_cols = list(raw_df.columns)
-date_col = st.selectbox("Select date/time column (→ ds)", options=all_cols)
+date_col = st.selectbox("Select date/time column (â†' ds)", options=all_cols)
 numeric_candidates = [c for c in all_cols if pd.api.types.is_numeric_dtype(raw_df[c]) or pd.api.types.is_bool_dtype(raw_df[c])]
-target_col = st.selectbox("Select numeric target column (→ y)", options=numeric_candidates if numeric_candidates else all_cols)
+target_col = st.selectbox("Select numeric target column (â†' y)", options=numeric_candidates if numeric_candidates else all_cols)
 category_col = st.selectbox("Optional categorical column to filter", options=["(None)"] + all_cols, index=0)
 category_vals = []
 if category_col != "(None)":
     unique_vals = pd.unique(raw_df[category_col].astype(str))
     category_vals = st.multiselect("Select one or more values to include", options=list(unique_vals))
+
+# Auto-detect frequency from the selected date column
+try:
+    temp_df = raw_df.copy()
+    if category_col != "(None)" and category_vals:
+        temp_df = temp_df[temp_df[category_col].astype(str).isin(category_vals)].copy()
+    
+    temp_df["ds"] = coerce_to_datetime(temp_df, date_col)
+    temp_df = temp_df.dropna(subset=["ds"]).sort_values("ds")
+    
+    if len(temp_df) >= 2:
+        freq_code, freq_label = detect_frequency(temp_df)
+        st.info(f"🔍 Detected frequency: **{freq_label}** ({freq_code})")
+        
+        # Update default horizon based on detected frequency
+        if freq_code == "D":
+            default_horizon = 90
+        elif freq_code.startswith("W"):
+            default_horizon = 26
+        else:  # Monthly
+            default_horizon = 12
+            
+        # Update the horizon input with the new default if user hasn't changed it from initial value
+        if 'horizon_updated' not in st.session_state:
+            st.session_state.horizon_updated = False
+            
+except Exception as e:
+    st.warning("Could not auto-detect frequency. Using Daily as default.")
+    freq_code, freq_label = "D", "Daily"
+    default_horizon = 90
 
 st.markdown("### Forecast")
 st.write("Click **Generate Forecast** in the sidebar when ready.")
@@ -330,30 +393,17 @@ with st.spinner("Preparing data..."):
     if df.empty:
         st.error("No valid rows remain after cleaning.")
         st.stop()
+    
+    # Re-detect frequency with cleaned data
+    freq_code, freq_label = detect_frequency(df)
 
     hist_df = df[["ds", "y"]].copy()
 
-st.write("=== DEBUG INFO ===")
-st.write(f"Original raw_df shape: {raw_df.shape}")
-st.write(f"After category filtering: {len(df)} rows")
-st.write(f"Date column '{date_col}' sample values:")
-st.write(raw_df[date_col].head())
-st.write(f"Target column '{target_col}' sample values:")
-st.write(raw_df[target_col].head())
-st.write(f"After date/numeric conversion - ds sample:")
-st.write(df["ds"].head())
-st.write(f"After date/numeric conversion - y sample:")
-st.write(df["y"].head())
-st.write(f"Valid dates: {df['ds'].notna().sum()}")
-st.write(f"Valid numeric values: {df['y'].notna().sum()}")
-st.write(f"hist_df final shape: {hist_df.shape}")
-st.write(f"hist_df y column null count: {hist_df['y'].isnull().sum()}")
-    
     if len(df) < max(10, min(50, horizon)):
         st.warning("Dataset is small; forecasts may be unstable.")
 
     # Guard: ensure enough valid numeric rows remain
-    st.info(f"Rows after cleaning: {len(hist_df):,} (valid y: {hist_df['y'].notna().sum():,})")
+    st.info(f"Rows after cleaning: {len(hist_df):,} (valid y: {hist_df['y'].notna().sum():,}) | Frequency: {freq_label}")
     if hist_df["y"].notna().sum() < 2:
         st.error("After cleaning, fewer than 2 valid numeric rows remain. Check the date/target mapping, remove commas/currency symbols, or export to CSV.")
         st.stop()
