@@ -332,6 +332,23 @@ with st.spinner("Preparing data..."):
         st.stop()
 
     hist_df = df[["ds", "y"]].copy()
+
+st.write("=== DEBUG INFO ===")
+st.write(f"Original raw_df shape: {raw_df.shape}")
+st.write(f"After category filtering: {len(df)} rows")
+st.write(f"Date column '{date_col}' sample values:")
+st.write(raw_df[date_col].head())
+st.write(f"Target column '{target_col}' sample values:")
+st.write(raw_df[target_col].head())
+st.write(f"After date/numeric conversion - ds sample:")
+st.write(df["ds"].head())
+st.write(f"After date/numeric conversion - y sample:")
+st.write(df["y"].head())
+st.write(f"Valid dates: {df['ds'].notna().sum()}")
+st.write(f"Valid numeric values: {df['y'].notna().sum()}")
+st.write(f"hist_df final shape: {hist_df.shape}")
+st.write(f"hist_df y column null count: {hist_df['y'].isnull().sum()}")
+    
     if len(df) < max(10, min(50, horizon)):
         st.warning("Dataset is small; forecasts may be unstable.")
 
